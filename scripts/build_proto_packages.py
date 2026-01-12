@@ -16,9 +16,26 @@ from pathlib import Path
 from typing import List
 from jinja2 import Environment, FileSystemLoader, Template
 
+def load_env_file(env_file_path: str = None) -> None:
+    """Load environment variables from a .env file."""
+    if env_file_path is None:
+        env_file_path = Path(__file__).parent / ".env"
+    
+    env_path = Path(env_file_path)
+    if env_path.exists():
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+
+# Load environment variables from .env file
+load_env_file()
+
 # Configuration
 PROTO_DIR = Path(__file__).parent.parent / "proto"
-OUTPUT_DIR = Path(__file__).parent.parent / "generated_packages"
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", str(Path(__file__).parent.parent / "generated_packages")))
 PACKAGES_DIR = OUTPUT_DIR / "packages"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -232,9 +249,12 @@ def create_setup_py(package_dir: Path, package_name: str, config: dict) -> bool:
         "protobuf>=4.0.0",
     ]
     
-    # Add AudioMessages dependency for service packages
+    # Add AudioMessages dependency for service packages as local path
     if config.get("dependencies"):
-        base_dependencies.append("audiomessages>=0.1.0")
+        # Calculate relative path to audiomessages package
+        audio_messages_path = PACKAGES_DIR / "audiomessages"
+        relative_path = os.path.relpath(audio_messages_path, package_dir)
+        base_dependencies.append(f"{relative_path}")
     
     # Special handling for AudioMessages package - it doesn't need grpcio-tools
     if config["type"] == "messages":
