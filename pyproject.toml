@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "audio-interface-proto"
+version = "0.1.0"
+description = "Audio interface protobuf definitions and generated Python packages"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Audio Interface Team"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0",
+    "protobuf>=4.0.0",
+    "jinja2>=3.0.0",
+]
+
+[project.optional-dependencies]
+build = [
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0",
+    "protobuf>=4.0.0",
+    "jinja2>=3.0.0",
+    "hatchling",
+]
+
+dev = [
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0",
+    "protobuf>=4.0.0",
+    "jinja2>=3.0.0",
+    "hatchling",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/audio-interface"
+Repository = "https://github.com/your-org/audio-interface.git"
+Issues = "https://github.com/your-org/audio-interface/issues"
+
+# Package configurations for individual generated packages
+[tool.audio-interface.packages]
+TranscribeClient = {path = "generated_packages/packages/transcribeclient", git_url = "https://github.com/your-org/transcribe-client.git"}
+TranscribeServer = {path = "generated_packages/packages/transcribeserver", git_url = "https://github.com/your-org/transcribe-server.git"}
+AudioCloneClient = {path = "generated_packages/packages/audiocloneclient", git_url = "https://github.com/your-org/audio-clone-client.git"}
+AudioCloneServer = {path = "generated_packages/packages/audiocloneserver", git_url = "https://github.com/your-org/audio-clone-server.git"}
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "proto/",
+    "scripts/",
+    "README.md",
+    "LICENSE",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.uv]
+dev-dependencies = [
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0",
+    "protobuf>=4.0.0",
+    "jinja2>=3.0.0",
+]

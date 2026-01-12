@@ -1,0 +1,7 @@
+def transcribe(self, request: {{ service_name }}_pb2.TranscribeRequest) -> {{ service_name }}_pb2.TranscribeResponse:
+        """Unary transcribe call."""
+        return self.stub.Transcribe(request)
+    
+def stream_transcription(self, requests):
+    """Bidirectional streaming for transcription."""
+    return self.stub.StreamTranscription(requests)

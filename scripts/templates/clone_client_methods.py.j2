@@ -1,0 +1,7 @@
+def clone(self, request: {{ service_name }}_pb2.CloneRequest) -> {{ service_name }}_pb2.CloneResponse:
+        """Unary clone call."""
+        return self.stub.Clone(request)
+    
+def stream_clone(self, requests):
+    """Bidirectional streaming for cloning."""
+    return self.stub.StreamClone(requests)

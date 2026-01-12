@@ -1,0 +1,18 @@
+def Clone(self, request: {{ service_name }}_pb2.CloneRequest, context: grpc.ServicerContext) -> {{ service_name }}_pb2.CloneResponse:
+        """Handle clone request."""
+        # TODO: Implement your cloning logic here
+        response = {{ service_name }}_pb2.CloneResponse()
+        response.cloned_audio_message.text = "Cloned audio result placeholder"
+        response.meta.request_id = "request-123"
+        response.meta.status_code = 200
+        return response
+    
+def StreamClone(self, request_iterator, context: grpc.ServicerContext):
+    """Handle streaming clone requests."""
+    # TODO: Implement streaming cloning logic
+    for request in request_iterator:
+        response = {{ service_name }}_pb2.CloneResponse()
+        response.cloned_audio_message.text = f"Streaming clone for audio data"
+        response.meta.request_id = "stream-request-123"
+        response.meta.status_code = 200
+        yield response

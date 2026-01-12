@@ -1,0 +1,13 @@
+```python
+from audiomessages import AudioMessage, Metadata
+
+# Create an audio message
+audio_msg = AudioMessage()
+audio_msg.text = "Hello World"
+audio_msg.audio_binary = b"audio_data"
+
+# Create metadata
+meta = Metadata()
+meta.request_id = "request-123"
+meta.status_code = 200
+```

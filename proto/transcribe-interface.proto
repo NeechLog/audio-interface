@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package audio_inference;
+
+import "audio-message.proto";
+
+message TranscribeRequest {
+  AudioMessage input = 1;
+  optional string model_name = 2; // Default picked if empty
+}
+
+message TranscribeResponse {
+  AudioMessage output = 1; // Text will be mandatory here
+  optional string model_name = 2;
+  Metadata meta = 3;
+}
+
+service TranscribeWorker {
+  // Standard Unary call
+  rpc Transcribe(TranscribeRequest) returns (TranscribeResponse) {}
+  
+  // Bi-directional stream for real-time transcription
+  rpc StreamTranscription(stream TranscribeRequest) returns (stream TranscribeResponse) {}
+}

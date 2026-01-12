@@ -1,0 +1,58 @@
+"""
+{{ description }}
+
+Example usage of the {{ service_name }} server with configurable launcher.
+"""
+
+from {{ package_name }}.grpc_server_launcher import start_grpc_server
+from {{ package_name }}.{{ module_name }} import {{ service_name }}_pb2_grpc
+from {{ package_name }}.{{ module_name }}.{{ service_name.lower() }}_server import {{ service_name }}Servicer
+
+# Example 1: Simple server startup
+def simple_server():
+    """Start server with default configuration."""
+    start_grpc_server(
+        service_add_func={{ service_name }}_pb2_grpc.add_{{ service_name }}Servicer_to_server,
+        service_class={{ service_name }}Servicer,
+        port=50051,
+        max_workers=10
+    )
+
+# Example 2: Multi-process server for high load
+def multi_process_server():
+    """Start server with multiple processes for high concurrency."""
+    start_grpc_server(
+        service_add_func={{ service_name }}_pb2_grpc.add_{{ service_name }}Servicer_to_server,
+        service_class={{ service_name }}Servicer,
+        port=50051,
+        max_workers=20,
+        num_processes=4,  # 4 processes, each with 20 threads
+        log_level="INFO",
+        max_message_length_mb=10  # 10MB max message size for audio
+    )
+
+# Example 3: Custom configuration
+def custom_server():
+    """Start server with custom configuration."""
+    from {{ package_name }}.grpc_server_launcher import GrpcServerConfig, GrpcServerLauncher
+    
+    config = GrpcServerConfig(
+        host="0.0.0.0",
+        port=50051,
+        max_workers=15,
+        num_processes=2,
+        log_level="DEBUG",
+        max_message_length=50 * 1024 * 1024,  # 50MB for large audio files
+        graceful_shutdown_timeout=60
+    )
+    
+    launcher = GrpcServerLauncher(config)
+    service_instance = {{ service_name }}Servicer()
+    launcher.start_server(
+        {{ service_name }}_pb2_grpc.add_{{ service_name }}Servicer_to_server,
+        service_instance
+    )
+
+if __name__ == '__main__':
+    # Choose which server configuration to use
+    simple_server()

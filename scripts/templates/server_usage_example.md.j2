@@ -1,0 +1,27 @@
+# Simple server startup
+```python
+from {{ package_name.lower() }}.server import serve
+
+# Start server
+serve(port=50051)
+```
+
+# Advanced server with launcher (recommended)
+```python
+from {{ package_name.lower() }}.grpc_server_launcher import start_grpc_server
+from {{ package_name.lower() }}.{{ module_name }}_pb2_grpc import add_{{ service_name }}Servicer_to_server
+from {{ package_name.lower() }}.server import {{ service_name }}Servicer
+
+# Start with multi-process support and configurable threads
+start_grpc_server(
+    service_add_func=add_{{ service_name }}Servicer_to_server,
+    service_class={{ service_name }}Servicer,
+    port=50051,
+    max_workers=20,
+    num_processes=4,  # 4 processes, each with 20 threads
+    log_level="INFO",
+    max_message_length_mb=10  # 10MB max message size for audio
+)
+```
+
+See `server_example.py` for more detailed usage examples.

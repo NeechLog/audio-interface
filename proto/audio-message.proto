@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package audio_inference;
+
+// Reusable message for passing audio in various states
+message AudioMessage {
+  optional string text = 1;
+  optional bytes audio_binary = 2;
+  optional string audio_file_path = 3;
+}
+
+message Metadata {
+  string request_id = 1;
+  float time_taken_ms = 2;
+  int32 status_code = 3; // Inspired by gRPC/HTTP status codes
+  string error_message = 4;
+  map<string, string> usage_stats = 5; // e.g., "tokens": "45"
+}

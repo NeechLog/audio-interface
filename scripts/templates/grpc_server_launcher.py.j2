@@ -1,0 +1,247 @@
+"""
+Audio Interface gRPC Server Launcher Library
+
+Provides a configurable gRPC server launcher that supports:
+- Multiple processes and threads configuration
+- Graceful shutdown handling
+- Logging configuration
+- Easy integration for audio transcription and cloning services
+"""
+
+import logging
+import signal
+import sys
+import multiprocessing
+from concurrent import futures
+from typing import Optional, Dict, Any, Callable
+import grpc
+from pathlib import Path
+
+
+class GrpcServerConfig:
+    """Configuration for gRPC server."""
+    
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 50051,
+        max_workers: int = 10,
+        num_processes: int = 1,
+        log_level: str = "INFO",
+        log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        graceful_shutdown_timeout: int = 30,
+        max_message_length: int = 4 * 1024 * 1024,  # 4MB default for audio
+        options: Optional[Dict[str, Any]] = None
+    ):
+        self.host = host
+        self.port = port
+        self.max_workers = max_workers
+        self.num_processes = num_processes
+        self.log_level = log_level
+        self.log_format = log_format
+        self.graceful_shutdown_timeout = graceful_shutdown_timeout
+        self.max_message_length = max_message_length
+        self.options = options or {}
+        
+        # Default gRPC options for audio processing
+        self.grpc_options = {
+            'grpc.max_send_message_length': max_message_length,
+            'grpc.max_receive_message_length': max_message_length,
+            'grpc.keepalive_time_ms': 30000,
+            'grpc.keepalive_timeout_ms': 5000,
+            'grpc.keepalive_permit_without_calls': True,
+            'grpc.http2.max_pings_without_data': 0,
+            'grpc.http2.min_time_between_pings_ms': 10000,
+            'grpc.http2.min_ping_interval_without_data_ms': 300000,
+            **self.options
+        }
+
+    def setup_logging(self):
+        """Setup logging configuration."""
+        logging.basicConfig(
+            level=getattr(logging, self.log_level.upper()),
+            format=self.log_format,
+            handlers=[
+                logging.StreamHandler(sys.stdout),
+                logging.FileHandler('grpc_server.log')
+            ]
+        )
+
+
+class GrpcServerLauncher:
+    """Configurable gRPC server launcher for audio processing services."""
+    
+    def __init__(self, config: GrpcServerConfig):
+        self.config = config
+        self.server = None
+        self.logger = logging.getLogger(__name__)
+        self.config.setup_logging()
+        
+    def create_server(self, service_add_func: Callable, service_instance: Any) -> grpc.Server:
+        """Create gRPC server with the specified service."""
+        # Create thread pool executor
+        thread_pool = futures.ThreadPoolExecutor(max_workers=self.config.max_workers)
+        
+        # Create server with thread pool
+        server = grpc.server(thread_pool, options=self.config.grpc_options.items())
+        
+        # Add service to server
+        service_add_func(service_instance, server)
+        
+        return server
+    
+    def start_server(self, service_add_func: Callable, service_instance: Any) -> None:
+        """Start the gRPC server with proper signal handling."""
+        # Create server
+        self.server = self.create_server(service_add_func, service_instance)
+        
+        # Add port
+        address = f'{self.config.host}:{self.config.port}'
+        self.server.add_insecure_port(address)
+        
+        # Setup signal handlers for graceful shutdown
+        self._setup_signal_handlers()
+        
+        try:
+            self.logger.info(f"Starting gRPC server on {address}")
+            self.logger.info(f"Configuration: {self.config.num_processes} processes, {self.config.max_workers} threads per process")
+            self.logger.info(f"Max message size: {self.config.max_message_length / (1024*1024):.1f}MB")
+            
+            self.server.start()
+            self.logger.info("gRPC server started successfully")
+            
+            # Wait for termination
+            self.server.wait_for_termination()
+            
+        except KeyboardInterrupt:
+            self.logger.info("Received keyboard interrupt, shutting down...")
+            self._graceful_shutdown()
+        except Exception as e:
+            self.logger.error(f"Server error: {e}")
+            self._graceful_shutdown()
+            raise
+    
+    def _setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown."""
+        def signal_handler(signum, frame):
+            self.logger.info(f"Received signal {signum}, shutting down...")
+            self._graceful_shutdown()
+            
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+    
+    def _graceful_shutdown(self):
+        """Perform graceful shutdown of the server."""
+        if self.server:
+            self.logger.info("Initiating graceful shutdown...")
+            
+            # Graceful shutdown with timeout
+            self.server.stop(self.config.graceful_shutdown_timeout)
+            self.logger.info("Server shutdown complete")
+    
+    @classmethod
+    def create_multi_process_server(
+        cls, 
+        config: GrpcServerConfig, 
+        service_add_func: Callable, 
+        service_class: Any,
+        service_init_args: tuple = (),
+        service_init_kwargs: dict = None
+    ):
+        """Create multi-process gRPC server."""
+        if config.num_processes <= 1:
+            # Single process mode
+            launcher = cls(config)
+            service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
+            launcher.start_server(service_add_func, service_instance)
+        else:
+            # Multi-process mode
+            processes = []
+            
+            def worker_process():
+                """Worker process function."""
+                launcher = cls(config)
+                service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
+                launcher.start_server(service_add_func, service_instance)
+            
+            # Start worker processes
+            for i in range(config.num_processes):
+                process = multiprocessing.Process(target=worker_process)
+                process.start()
+                processes.append(process)
+                config.setup_logging()  # Setup logging for each process
+                logging.info(f"Started worker process {i+1}/{config.num_processes}")
+            
+            # Wait for all processes
+            try:
+                for process in processes:
+                    process.join()
+            except KeyboardInterrupt:
+                logging.info("Received keyboard interrupt, terminating processes...")
+                for process in processes:
+                    process.terminate()
+                for process in processes:
+                    process.join()
+
+
+def create_default_config(
+    port: int = 50051,
+    max_workers: int = 10,
+    num_processes: int = 1,
+    log_level: str = "INFO",
+    max_message_length_mb: int = 4
+) -> GrpcServerConfig:
+    """Create default configuration for audio processing servers."""
+    return GrpcServerConfig(
+        port=port,
+        max_workers=max_workers,
+        num_processes=num_processes,
+        log_level=log_level,
+        max_message_length=max_message_length_mb * 1024 * 1024
+    )
+
+
+# Convenience function for easy server startup
+def start_grpc_server(
+    service_add_func: Callable,
+    service_class: Any,
+    port: int = 50051,
+    max_workers: int = 10,
+    num_processes: int = 1,
+    log_level: str = "INFO",
+    max_message_length_mb: int = 4,
+    service_init_args: tuple = (),
+    service_init_kwargs: dict = None
+):
+    """
+    Convenience function to start gRPC server with common configuration.
+    
+    Args:
+        service_add_func: Function to add service to server (e.g., TranscribeWorker_pb2_grpc.add_TranscribeWorkerServicer_to_server)
+        service_class: Service implementation class
+        port: Port to listen on
+        max_workers: Number of worker threads per process
+        num_processes: Number of processes to spawn
+        log_level: Logging level
+        max_message_length_mb: Maximum message length in MB
+        service_init_args: Arguments to pass to service class constructor
+        service_init_kwargs: Keyword arguments to pass to service class constructor
+    """
+    config = create_default_config(
+        port=port,
+        max_workers=max_workers,
+        num_processes=num_processes,
+        log_level=log_level,
+        max_message_length_mb=max_message_length_mb
+    )
+    
+    launcher = GrpcServerLauncher(config)
+    
+    if num_processes > 1:
+        launcher.create_multi_process_server(
+            config, service_add_func, service_class, 
+            service_init_args, service_init_kwargs
+        )
+    else:
+        service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
+        launcher.start_server(service_add_func, service_instance)

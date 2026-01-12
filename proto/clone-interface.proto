@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package audio_inference;
+
+import "audio-message.proto";
+
+message CloneRequest {
+  AudioMessage request_audio_message = 1;
+  AudioMessage sample_audio_message = 2;
+  optional string model_name = 3; // Default picked if empty
+}
+
+message CloneResponse {
+  AudioMessage cloned_audio_message = 1;
+  optional string model_name = 2;
+  Metadata meta = 3;
+}
+
+service AudioCloneModelWorker {
+  // Standard Unary call
+  rpc Clone(CloneRequest) returns (CloneResponse) {}
+  
+  // Bi-directional stream for real-time cloning
+  rpc StreamClone(stream CloneRequest) returns (stream CloneResponse) {}
+}
