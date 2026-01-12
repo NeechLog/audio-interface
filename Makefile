@@ -17,7 +17,19 @@ build:
 
 # Clean generated packages
 clean:
-	rm -rf generated_packages
+	@if [ -f "scripts/.env" ]; then \
+		. scripts/.env; \
+		if [ -n "$$OUTPUT_DIR" ]; then \
+			echo "Cleaning $$OUTPUT_DIR"; \
+			rm -rf "$$OUTPUT_DIR"; \
+		else \
+			echo "Cleaning generated_packages"; \
+			rm -rf generated_packages; \
+		fi; \
+	else \
+		echo "No .env file found, cleaning generated_packages"; \
+		rm -rf generated_packages; \
+	fi
 
 # Test package building (dry run)
 test:
