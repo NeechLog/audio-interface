@@ -251,10 +251,10 @@ def create_setup_py(package_dir: Path, package_name: str, config: dict) -> bool:
     
     # Add AudioMessages dependency for service packages as local path
     if config.get("dependencies"):
-        # Calculate relative path to audiomessages package
+        # Calculate absolute path to audiomessages package for proper dependency specification
         audio_messages_path = PACKAGES_DIR / "audiomessages"
-        relative_path = os.path.relpath(audio_messages_path, package_dir)
-        base_dependencies.append(f"{relative_path}")
+        # Use local path format for dependency
+        base_dependencies.append(f"audiomessages @ {audio_messages_path.as_uri()}")
     
     # Special handling for AudioMessages package - it doesn't need grpcio-tools
     if config["type"] == "messages":

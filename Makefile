@@ -20,7 +20,7 @@ clean:
 	@if [ -f "scripts/.env" ]; then \
 		. scripts/.env; \
 		if [ -n "$$OUTPUT_DIR" ]; then \
-			echo "Cleaning $$OUTPUT_DIR"; \
+			echo "Cleaning $$OUTPUT_DIR/packages"; \
 			rm -rf "$$OUTPUT_DIR/packages"; \
 		else \
 			echo "Cleaning generated_packages"; \
