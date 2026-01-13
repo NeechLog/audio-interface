@@ -21,7 +21,7 @@ clean:
 		. scripts/.env; \
 		if [ -n "$$OUTPUT_DIR" ]; then \
 			echo "Cleaning $$OUTPUT_DIR"; \
-			rm -rf "$$OUTPUT_DIR"; \
+			rm -rf "$$OUTPUT_DIR/packages"; \
 		else \
 			echo "Cleaning generated_packages"; \
 			rm -rf generated_packages; \
