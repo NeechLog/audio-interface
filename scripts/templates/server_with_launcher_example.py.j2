@@ -4,15 +4,15 @@
 Example usage of the {{ service_name }} server with configurable launcher.
 """
 
-from {{ package_name }}.grpc_server_launcher import start_grpc_server
-from {{ package_name }}.{{ module_name }} import {{ service_name }}_pb2_grpc
-from {{ package_name }}.{{ module_name }}.{{ service_name.lower() }}_server import {{ service_name }}Servicer
+from {{ module_name }}.grpc_server_launcher import start_grpc_server
+from {{ module_name }} import {{ proto_file_name }}
+from {{ module_name }}.server import {{ service_name }}Servicer
 
 # Example 1: Simple server startup
 def simple_server():
     """Start server with default configuration."""
     start_grpc_server(
-        service_add_func={{ service_name }}_pb2_grpc.add_{{ service_name }}Servicer_to_server,
+        service_add_func={{ proto_file_name }}.add_{{ service_name }}Servicer_to_server,
         service_class={{ service_name }}Servicer,
         port=50051,
         max_workers=10
@@ -22,7 +22,7 @@ def simple_server():
 def multi_process_server():
     """Start server with multiple processes for high concurrency."""
     start_grpc_server(
-        service_add_func={{ service_name }}_pb2_grpc.add_{{ service_name }}Servicer_to_server,
+        service_add_func={{ proto_file_name }}.add_{{ service_name }}Servicer_to_server,
         service_class={{ service_name }}Servicer,
         port=50051,
         max_workers=20,
@@ -34,7 +34,7 @@ def multi_process_server():
 # Example 3: Custom configuration
 def custom_server():
     """Start server with custom configuration."""
-    from {{ package_name }}.grpc_server_launcher import GrpcServerConfig, GrpcServerLauncher
+    from {{ module_name }}.grpc_server_launcher import GrpcServerConfig, GrpcServerLauncher
     
     config = GrpcServerConfig(
         host="0.0.0.0",
@@ -49,7 +49,7 @@ def custom_server():
     launcher = GrpcServerLauncher(config)
     service_instance = {{ service_name }}Servicer()
     launcher.start_server(
-        {{ service_name }}_pb2_grpc.add_{{ service_name }}Servicer_to_server,
+        {{ proto_file_name }}.add_{{ service_name }}Servicer_to_server,
         service_instance
     )
 

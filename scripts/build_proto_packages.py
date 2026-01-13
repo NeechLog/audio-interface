@@ -229,7 +229,8 @@ def create_server_skeleton(package_dir: Path, package_name: str, config: dict) -
         description=config['description'],
         module_name=module_name,
         service_name=service_name,
-        service_methods=indented_methods
+        service_methods=indented_methods,
+        proto_file_name=config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_')
     )
     
     server_file = package_dir / module_name / "server.py"
@@ -297,7 +298,8 @@ def create_server_launcher(package_dir: Path, package_name: str, config: dict) -
         description=config['description'],
         module_name=module_name,
         service_name=service_name,
-        package_name=package_name
+        package_name=package_name,
+        proto_file_name=config["proto_files"][0].replace('.proto', '_pb2_grpc').replace('-', '_')
     )
     
     example_file = package_dir / package_name.lower() / "server_example.py"

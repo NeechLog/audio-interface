@@ -5,9 +5,9 @@
 import grpc
 from concurrent import futures
 from audiomessages import AudioMessage, Metadata
-from {{ module_name }} import {{ service_name }}_pb2, {{ service_name }}_pb2_grpc
+from {{ module_name }} import {{ proto_file_name }}, {{ proto_file_name }}_grpc
 
-class {{ service_name }}Servicer({{ service_name }}_pb2_grpc.{{ service_name }}Servicer):
+class {{ service_name }}Servicer({{ proto_file_name }}_grpc.{{ service_name }}Servicer):
     """Implementation of {{ service_name }} service."""
     
     def __init__(self):
@@ -18,7 +18,7 @@ class {{ service_name }}Servicer({{ service_name }}_pb2_grpc.{{ service_name }}S
 def serve(port: int = 50051):
     """Start the gRPC server."""
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    {{ service_name }}_pb2_grpc.add_{{ service_name }}Servicer_to_server({{ service_name }}Servicer(), server)
+    {{ proto_file_name }}_grpc.add_{{ service_name }}Servicer_to_server({{ service_name }}Servicer(), server)
     
     server.add_insecure_port(f'[::]:{port}')
     print(f"Starting {{ service_name }} server on port {port}")
