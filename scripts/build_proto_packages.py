@@ -211,10 +211,10 @@ def create_server_skeleton(package_dir: Path, package_name: str, config: dict) -
     # Load service-specific methods template
     if "Transcribe" in package_name:
         methods_template = env.get_template("transcribe_server_methods.py.j2")
-        service_methods = methods_template.render(service_name=service_name)
+        service_methods = methods_template.render(service_name=service_name, proto_file_name=config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_'))
     elif "Clone" in package_name:
         methods_template = env.get_template("clone_server_methods.py.j2")
-        service_methods = methods_template.render(service_name=service_name)
+        service_methods = methods_template.render(service_name=service_name, proto_file_name=config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_'))
     else:
         service_methods = ""
     
