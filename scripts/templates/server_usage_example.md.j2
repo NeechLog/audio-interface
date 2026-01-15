@@ -1,4 +1,40 @@
 # Usage Example
+
+The generated server comes with a built-in launcher that supports command-line arguments for configuration, including daemon mode.
+
+## Running the Server
+
+Run the server directly using the example script:
+
+```bash
+# Run in foreground
+python -m {{ package_name.lower() }}.server_example --port 50051
+
+# Run in background (daemon mode)
+python -m {{ package_name.lower() }}.server_example --daemon --log-file my_server.log --pid-file my_server.pid
+
+# Stop the server
+python -m {{ package_name.lower() }}.stop_server --pid-file my_server.pid
+
+# Run with multiple processes
+python -m {{ package_name.lower() }}.server_example --processes 4 --workers 20
+```
+
+## CLI Options
+
+- `--port`: Port to listen on (default: 50051)
+- `--workers`: Number of worker threads per process (default: 10)
+- `--processes`: Number of processes to spawn (default: 1)
+- `--log-level`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `--log-file`: Path to log file (default: server.log)
+- `--daemon`: Run as daemon in background
+- `--pid-file`: Path to PID file (useful for managing daemon process)
+- `--max-message-size`: Max message size in MB (default: 4)
+
+## Programmatic Usage
+
+You can also use the launcher programmatically:
+
 ```python
 import logging
 from {{ package_name.lower() }}.grpc_server_launcher import start_grpc_server
@@ -19,11 +55,11 @@ start_grpc_server(
     service_add_func=add_{{ service_name }}Servicer_to_server,
     service_class={{ service_name }}Servicer,
     port=50051,
-    log_file="server.log",
+    daemon=True,  # Run in background
+    pid_file="server.pid",
     service_init_kwargs={
         {{ handler_init_kwargs_example }}
     }
 )
 ```
 
-See `server_example.py` in the package for a complete working example with default echo handlers.

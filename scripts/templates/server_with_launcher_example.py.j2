@@ -4,7 +4,9 @@
 Example usage of the {{ service_name }} server with configurable launcher.
 """
 
+import argparse
 import logging
+import sys
 from {{ module_name }}.grpc_server_launcher import start_grpc_server
 from {{ module_name }} import {{ grpc_module_name }}, {{ pb2_module_name }}
 from {{ module_name }}.server import {{ service_name }}Servicer
@@ -12,61 +14,47 @@ from {{ module_name }}.server import {{ service_name }}Servicer
 # Define handlers
 {{ handler_definitions }}
 
-# Example 1: Simple server startup
-def simple_server():
-    """Start server with default configuration."""
+def main():
+    """Main entry point for the server."""
+    parser = argparse.ArgumentParser(description="{{ description }} Server")
+    parser.add_argument("--port", type=int, default=50051, help="Port to listen on")
+    parser.add_argument("--workers", type=int, default=10, help="Number of worker threads per process")
+    parser.add_argument("--processes", type=int, default=1, help="Number of processes to spawn")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Logging level")
+    parser.add_argument("--log-file", default="server.log", help="Path to log file")
+    parser.add_argument("--daemon", action="store_true", help="Run as daemon in background")
+    parser.add_argument("--pid-file", help="Path to PID file (useful for managing daemon process)")
+    parser.add_argument("--max-message-size", type=int, default=4, help="Max message size in MB")
+    
+    args = parser.parse_args()
+    
+    # Simple console logging for startup info before launcher takes over
+    if not args.daemon:
+        logging.basicConfig(
+            level=getattr(logging, args.log_level.upper()),
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            stream=sys.stdout
+        )
+    
+    print(f"Starting server on port {args.port}...")
+    if args.daemon:
+        print(f"Running in background. Logs will be written to {args.log_file}")
+    
     start_grpc_server(
         service_add_func={{ grpc_module_name }}.add_{{ service_name }}Servicer_to_server,
         service_class={{ service_name }}Servicer,
-        port=50051,
-        max_workers=10,
+        port=args.port,
+        max_workers=args.workers,
+        num_processes=args.processes,
+        log_level=args.log_level,
+        log_file=args.log_file,
+        daemon=args.daemon,
+        pid_file=args.pid_file,
+        max_message_length_mb=args.max_message_size,
         service_init_kwargs={
             {{ handler_kwargs_dict }}
         }
-    )
-
-# Example 2: Multi-process server for high load
-def multi_process_server():
-    """Start server with multiple processes for high concurrency."""
-    start_grpc_server(
-        service_add_func={{ grpc_module_name }}.add_{{ service_name }}Servicer_to_server,
-        service_class={{ service_name }}Servicer,
-        port=50051,
-        max_workers=20,
-        num_processes=4,  # 4 processes, each with 20 threads
-        log_level="INFO",
-        log_file="server_multi_process.log",
-        max_message_length_mb=10,  # 10MB max message size for audio
-        service_init_kwargs={
-            {{ handler_kwargs_dict }}
-        }
-    )
-
-# Example 3: Custom configuration
-def custom_server():
-    """Start server with custom configuration."""
-    from {{ module_name }}.grpc_server_launcher import GrpcServerConfig, GrpcServerLauncher
-    
-    config = GrpcServerConfig(
-        host="0.0.0.0",
-        port=50051,
-        max_workers=15,
-        num_processes=2,
-        log_level="DEBUG",
-        log_file="server_custom.log",
-        max_message_length=50 * 1024 * 1024,  # 50MB for large audio files
-        graceful_shutdown_timeout=60
-    )
-    
-    launcher = GrpcServerLauncher(config)
-    service_instance = {{ service_name }}Servicer(
-        {{ handler_kwargs_args }}
-    )
-    launcher.start_server(
-        {{ grpc_module_name }}.add_{{ service_name }}Servicer_to_server,
-        service_instance
     )
 
 if __name__ == '__main__':
-    # Choose which server configuration to use
-    simple_server()
+    main()

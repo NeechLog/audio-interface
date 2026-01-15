@@ -309,6 +309,10 @@ def create_setup_py(package_dir: Path, package_name: str, config: dict) -> bool:
         "protobuf>=4.0.0",
     ]
     
+    # Add python-daemon for server packages
+    if config["type"] == "server":
+        base_dependencies.append("python-daemon>=3.0.0")
+    
     # Add AudioMessages dependency for service packages as local path
     if config.get("dependencies"):
         # Calculate absolute path to audiomessages package for proper dependency specification
@@ -387,6 +391,14 @@ def create_server_launcher(package_dir: Path, package_name: str, config: dict) -
     
     example_file = package_dir / package_name.lower() / "server_example.py"
     example_file.write_text(example_code)
+    
+    # Create stop server script
+    stop_template = env.get_template("stop_server.py.j2")
+    stop_code = stop_template.render(
+        service_name=service_name
+    )
+    stop_file = package_dir / package_name.lower() / "stop_server.py"
+    stop_file.write_text(stop_code)
     
     return True
 

@@ -32,6 +32,12 @@ class GrpcServerConfig:
         log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         graceful_shutdown_timeout: int = 30,
         max_message_length: int = 4 * 1024 * 1024,  # 4MB default for audio
+        daemon: bool = False,
+        pid_file: Optional[str] = None,
+        working_dir: str = "/",
+        umask: int = 0o022,
+        uid: Optional[int] = None,
+        gid: Optional[int] = None,
         options: Optional[Dict[str, Any]] = None
     ):
         self.host = host
@@ -43,6 +49,12 @@ class GrpcServerConfig:
         self.log_format = log_format
         self.graceful_shutdown_timeout = graceful_shutdown_timeout
         self.max_message_length = max_message_length
+        self.daemon = daemon
+        self.pid_file = pid_file
+        self.working_dir = working_dir
+        self.umask = umask
+        self.uid = uid
+        self.gid = gid
         self.options = options or {}
         
         # Default gRPC options for audio processing
@@ -60,13 +72,18 @@ class GrpcServerConfig:
 
     def setup_logging(self):
         """Setup logging configuration."""
+        # Check if we are in daemon mode to adjust logging
+        handlers = [logging.FileHandler(self.log_file)]
+        
+        # Only add stdout handler if not a daemon
+        if not self.daemon:
+            handlers.append(logging.StreamHandler(sys.stdout))
+            
         logging.basicConfig(
             level=getattr(logging, self.log_level.upper()),
             format=self.log_format,
-            handlers=[
-                logging.StreamHandler(sys.stdout),
-                logging.FileHandler(self.log_file)
-            ]
+            handlers=handlers,
+            force=True  # Force reconfiguration
         )
 
 
@@ -77,6 +94,7 @@ class GrpcServerLauncher:
         self.config = config
         self.server = None
         self.logger = logging.getLogger(__name__)
+        # Initial logging setup (will be re-run if daemonized)
         self.config.setup_logging()
         
     def create_server(self, service_add_func: Callable, service_instance: Any) -> grpc.Server:
@@ -93,7 +111,52 @@ class GrpcServerLauncher:
         return server
     
     def start_server(self, service_add_func: Callable, service_instance: Any) -> None:
-        """Start the gRPC server with proper signal handling."""
+        """Start the gRPC server with proper signal handling and optional daemonization."""
+        if self.config.daemon:
+            self._run_as_daemon(self._run_server_core, service_add_func, service_instance)
+        else:
+            self._run_server_core(service_add_func, service_instance)
+
+    def _run_as_daemon(self, target_func: Callable, *args, **kwargs):
+        """Run the given target function in a daemon context."""
+        try:
+            import daemon
+            from daemon import pidfile
+        except ImportError:
+            self.logger.error("python-daemon is required for daemon mode. Install it with: pip install python-daemon")
+            sys.exit(1)
+            
+        context_kwargs = {
+            'working_directory': self.config.working_dir,
+            'umask': self.config.umask,
+            'detach_process': True,
+        }
+        
+        if self.config.pid_file:
+            context_kwargs['pidfile'] = pidfile.TimeoutPIDLockFile(self.config.pid_file)
+        
+        if self.config.uid is not None:
+            context_kwargs['uid'] = self.config.uid
+        if self.config.gid is not None:
+            context_kwargs['gid'] = self.config.gid
+
+        # Preserve file handles if needed, but we re-setup logging inside
+        
+        self.logger.info("Starting server in daemon mode...")
+        
+        try:
+            with daemon.DaemonContext(**context_kwargs):
+                # Re-setup logging in the daemon process
+                self.config.setup_logging()
+                self.logger.info("Daemon started successfully")
+                target_func(*args, **kwargs)
+        except Exception as e:
+            # We can't log here effectively if daemon setup failed, but try anyway
+            self.logger.error(f"Failed to start daemon: {e}")
+            raise
+
+    def _run_server_core(self, service_add_func: Callable, service_instance: Any) -> None:
+        """Core server execution logic."""
         # Create server
         self.server = self.create_server(service_add_func, service_instance)
         
@@ -151,39 +214,53 @@ class GrpcServerLauncher:
         service_init_kwargs: dict = None
     ):
         """Create multi-process gRPC server."""
-        if config.num_processes <= 1:
-            # Single process mode
-            launcher = cls(config)
-            service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
-            launcher.start_server(service_add_func, service_instance)
-        else:
-            # Multi-process mode
-            processes = []
-            
-            def worker_process():
-                """Worker process function."""
+        
+        def run_logic():
+            if config.num_processes <= 1:
+                # Single process mode
                 launcher = cls(config)
                 service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
-                launcher.start_server(service_add_func, service_instance)
-            
-            # Start worker processes
-            for i in range(config.num_processes):
-                process = multiprocessing.Process(target=worker_process)
-                process.start()
-                processes.append(process)
-                config.setup_logging()  # Setup logging for each process
-                logging.info(f"Started worker process {i+1}/{config.num_processes}")
-            
-            # Wait for all processes
-            try:
-                for process in processes:
-                    process.join()
-            except KeyboardInterrupt:
-                logging.info("Received keyboard interrupt, terminating processes...")
-                for process in processes:
-                    process.terminate()
-                for process in processes:
-                    process.join()
+                launcher._run_server_core(service_add_func, service_instance)
+            else:
+                # Multi-process mode
+                processes = []
+                
+                def worker_process():
+                    """Worker process function."""
+                    # Disable daemon flag for workers since they are already inside a daemon (or main process)
+                    # and we don't want them to try to double-daemonize
+                    worker_config = config
+                    worker_config.daemon = False 
+                    
+                    launcher = cls(worker_config)
+                    service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
+                    launcher._run_server_core(service_add_func, service_instance)
+                
+                # Start worker processes
+                for i in range(config.num_processes):
+                    process = multiprocessing.Process(target=worker_process)
+                    process.start()
+                    processes.append(process)
+                    # config.setup_logging()  # Setup logging for each process
+                    logging.info(f"Started worker process {i+1}/{config.num_processes}")
+                
+                # Wait for all processes
+                try:
+                    for process in processes:
+                        process.join()
+                except KeyboardInterrupt:
+                    logging.info("Received keyboard interrupt, terminating processes...")
+                    for process in processes:
+                        process.terminate()
+                    for process in processes:
+                        process.join()
+
+        # Handle daemonization at the top level
+        if config.daemon:
+            launcher = cls(config) # Temporary instance just to call _run_as_daemon
+            launcher._run_as_daemon(run_logic)
+        else:
+            run_logic()
 
 
 def create_default_config(
@@ -192,7 +269,9 @@ def create_default_config(
     num_processes: int = 1,
     log_level: str = "INFO",
     log_file: str = "grpc_server.log",
-    max_message_length_mb: int = 4
+    max_message_length_mb: int = 4,
+    daemon: bool = False,
+    pid_file: Optional[str] = None
 ) -> GrpcServerConfig:
     """Create default configuration for audio processing servers."""
     return GrpcServerConfig(
@@ -201,7 +280,9 @@ def create_default_config(
         num_processes=num_processes,
         log_level=log_level,
         log_file=log_file,
-        max_message_length=max_message_length_mb * 1024 * 1024
+        max_message_length=max_message_length_mb * 1024 * 1024,
+        daemon=daemon,
+        pid_file=pid_file
     )
 
 
@@ -215,6 +296,8 @@ def start_grpc_server(
     log_level: str = "INFO",
     log_file: str = "grpc_server.log",
     max_message_length_mb: int = 4,
+    daemon: bool = False,
+    pid_file: Optional[str] = None,
     service_init_args: tuple = (),
     service_init_kwargs: dict = None
 ):
@@ -230,6 +313,8 @@ def start_grpc_server(
         log_level: Logging level
         log_file: Path to log file
         max_message_length_mb: Maximum message length in MB
+        daemon: Run as daemon in background
+        pid_file: Path to PID file for daemon
         service_init_args: Arguments to pass to service class constructor
         service_init_kwargs: Keyword arguments to pass to service class constructor
     """
@@ -239,7 +324,9 @@ def start_grpc_server(
         num_processes=num_processes,
         log_level=log_level,
         log_file=log_file,
-        max_message_length_mb=max_message_length_mb
+        max_message_length_mb=max_message_length_mb,
+        daemon=daemon,
+        pid_file=pid_file
     )
     
     launcher = GrpcServerLauncher(config)
@@ -250,5 +337,8 @@ def start_grpc_server(
             service_init_args, service_init_kwargs
         )
     else:
-        service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
-        launcher.start_server(service_add_func, service_instance)
+        if daemon:
+            launcher.start_server(service_add_func, service_class(*service_init_args, **(service_init_kwargs or {})))
+        else:
+            service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
+            launcher.start_server(service_add_func, service_instance)
