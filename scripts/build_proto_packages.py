@@ -346,7 +346,7 @@ def create_server_launcher(package_dir: Path, package_name: str, config: dict) -
     
     # Load server launcher template
     launcher_template = env.get_template("grpc_server_launcher.py.j2")
-    launcher_code = launcher_template.render()
+    launcher_code = launcher_template.render(package_name=package_name)
     
     # Create launcher module
     launcher_dir = package_dir / package_name.lower() / "grpc_server_launcher.py"
@@ -395,7 +395,8 @@ def create_server_launcher(package_dir: Path, package_name: str, config: dict) -
     # Create stop server script
     stop_template = env.get_template("stop_server.py.j2")
     stop_code = stop_template.render(
-        service_name=service_name
+        service_name=service_name,
+        package_name=package_name
     )
     stop_file = package_dir / package_name.lower() / "stop_server.py"
     stop_file.write_text(stop_code)

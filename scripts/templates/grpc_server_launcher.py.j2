@@ -33,7 +33,7 @@ class GrpcServerConfig:
         graceful_shutdown_timeout: int = 30,
         max_message_length: int = 4 * 1024 * 1024,  # 4MB default for audio
         daemon: bool = False,
-        pid_file: Optional[str] = None,
+        pid_file: Optional[str] = "server.pid",
         working_dir: str = "/",
         umask: int = 0o022,
         uid: Optional[int] = None,
@@ -133,7 +133,9 @@ class GrpcServerLauncher:
         }
         
         if self.config.pid_file:
-            context_kwargs['pidfile'] = pidfile.TimeoutPIDLockFile(self.config.pid_file)
+            # Ensure pid_file path is absolute because daemon context changes working directory
+            abs_pid_file = os.path.abspath(self.config.pid_file)
+            context_kwargs['pidfile'] = pidfile.TimeoutPIDLockFile(abs_pid_file)
         
         if self.config.uid is not None:
             context_kwargs['uid'] = self.config.uid
@@ -271,7 +273,7 @@ def create_default_config(
     log_file: str = "grpc_server.log",
     max_message_length_mb: int = 4,
     daemon: bool = False,
-    pid_file: Optional[str] = None
+    pid_file: Optional[str] = "server.pid"
 ) -> GrpcServerConfig:
     """Create default configuration for audio processing servers."""
     return GrpcServerConfig(
@@ -297,7 +299,7 @@ def start_grpc_server(
     log_file: str = "grpc_server.log",
     max_message_length_mb: int = 4,
     daemon: bool = False,
-    pid_file: Optional[str] = None,
+    pid_file: Optional[str] = "{{ package_name.lower() }}.pid",
     service_init_args: tuple = (),
     service_init_kwargs: dict = None
 ):

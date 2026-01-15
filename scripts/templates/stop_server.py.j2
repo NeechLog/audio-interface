@@ -89,7 +89,7 @@ def stop_server(pid_file):
 
 def main():
     parser = argparse.ArgumentParser(description="Stop the {{ service_name }} server")
-    parser.add_argument("--pid-file", default="server.pid", help="Path to PID file (default: server.pid)")
+    parser.add_argument("--pid-file", default="{{ package_name.lower() }}.pid", help="Path to PID file (default: {{ package_name.lower() }}.pid)")
     
     args = parser.parse_args()
     stop_server(args.pid_file)

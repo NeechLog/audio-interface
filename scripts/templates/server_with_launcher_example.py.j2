@@ -23,7 +23,7 @@ def main():
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Logging level")
     parser.add_argument("--log-file", default="server.log", help="Path to log file")
     parser.add_argument("--daemon", action="store_true", help="Run as daemon in background")
-    parser.add_argument("--pid-file", help="Path to PID file (useful for managing daemon process)")
+    parser.add_argument("--pid-file", default="{{ package_name.lower() }}.pid", help="Path to PID file (default: {{ package_name.lower() }}.pid)")
     parser.add_argument("--max-message-size", type=int, default=4, help="Max message size in MB")
     
     args = parser.parse_args()
