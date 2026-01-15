@@ -4,7 +4,7 @@
 
 import grpc
 from audiomessages import AudioMessage, Metadata
-from {{ module_name }} import {{ service_name }}_pb2, {{ service_name }}_pb2_grpc
+from {{ module_name }} import {{ pb2_module_name }}, {{ pb2_module_name }}_grpc
 
 class {{ package_name }}:
     """Client for {{ service_name }} service."""
@@ -12,7 +12,7 @@ class {{ package_name }}:
     def __init__(self, server_address: str):
         """Initialize client with server address."""
         self.channel = grpc.insecure_channel(server_address)
-        self.stub = {{ service_name }}_pb2_grpc.{{ service_name }}Stub(self.channel)
+        self.stub = {{ pb2_module_name }}_grpc.{{ service_name }}Stub(self.channel)
     
     def close(self):
         """Close the gRPC channel."""

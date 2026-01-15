@@ -1,4 +1,4 @@
-def transcribe(self, request: {{ service_name }}_pb2.TranscribeRequest) -> {{ service_name }}_pb2.TranscribeResponse:
+def transcribe(self, request: {{ pb2_module_name }}.TranscribeRequest) -> {{ pb2_module_name }}.TranscribeResponse:
         """Unary transcribe call."""
         return self.stub.Transcribe(request)
     

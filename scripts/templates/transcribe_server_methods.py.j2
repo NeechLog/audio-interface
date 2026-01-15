@@ -1,18 +1,7 @@
 def Transcribe(self, request: {{ proto_file_name }}.TranscribeRequest, context: grpc.ServicerContext) -> {{ proto_file_name }}.TranscribeResponse:
-        """Handle transcribe request."""
-        # TODO: Implement your transcription logic here
-        response = {{ proto_file_name }}.TranscribeResponse()
-        response.output.text = "Transcription result placeholder"
-        response.meta.request_id = "request-123"
-        response.meta.status_code = 200
-        return response
+    """Handle transcribe request."""
+    return self.transcribe_handler(request, context)
     
 def StreamTranscription(self, request_iterator, context: grpc.ServicerContext):
     """Handle streaming transcribe requests."""
-    # TODO: Implement streaming transcription logic
-    for request in request_iterator:
-        response = {{ proto_file_name }}.TranscribeResponse()
-        response.output.text = f"Streaming transcription for: {request.input.text or 'audio data'}"
-        response.meta.request_id = "stream-request-123"
-        response.meta.status_code = 200
-        yield response
+    yield from self.stream_transcription_handler(request_iterator, context)

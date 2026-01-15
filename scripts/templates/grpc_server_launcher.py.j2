@@ -28,6 +28,7 @@ class GrpcServerConfig:
         max_workers: int = 10,
         num_processes: int = 1,
         log_level: str = "INFO",
+        log_file: str = "grpc_server.log",
         log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         graceful_shutdown_timeout: int = 30,
         max_message_length: int = 4 * 1024 * 1024,  # 4MB default for audio
@@ -38,6 +39,7 @@ class GrpcServerConfig:
         self.max_workers = max_workers
         self.num_processes = num_processes
         self.log_level = log_level
+        self.log_file = log_file
         self.log_format = log_format
         self.graceful_shutdown_timeout = graceful_shutdown_timeout
         self.max_message_length = max_message_length
@@ -63,7 +65,7 @@ class GrpcServerConfig:
             format=self.log_format,
             handlers=[
                 logging.StreamHandler(sys.stdout),
-                logging.FileHandler('grpc_server.log')
+                logging.FileHandler(self.log_file)
             ]
         )
 
@@ -189,6 +191,7 @@ def create_default_config(
     max_workers: int = 10,
     num_processes: int = 1,
     log_level: str = "INFO",
+    log_file: str = "grpc_server.log",
     max_message_length_mb: int = 4
 ) -> GrpcServerConfig:
     """Create default configuration for audio processing servers."""
@@ -197,6 +200,7 @@ def create_default_config(
         max_workers=max_workers,
         num_processes=num_processes,
         log_level=log_level,
+        log_file=log_file,
         max_message_length=max_message_length_mb * 1024 * 1024
     )
 
@@ -209,6 +213,7 @@ def start_grpc_server(
     max_workers: int = 10,
     num_processes: int = 1,
     log_level: str = "INFO",
+    log_file: str = "grpc_server.log",
     max_message_length_mb: int = 4,
     service_init_args: tuple = (),
     service_init_kwargs: dict = None
@@ -223,6 +228,7 @@ def start_grpc_server(
         max_workers: Number of worker threads per process
         num_processes: Number of processes to spawn
         log_level: Logging level
+        log_file: Path to log file
         max_message_length_mb: Maximum message length in MB
         service_init_args: Arguments to pass to service class constructor
         service_init_kwargs: Keyword arguments to pass to service class constructor
@@ -232,6 +238,7 @@ def start_grpc_server(
         max_workers=max_workers,
         num_processes=num_processes,
         log_level=log_level,
+        log_file=log_file,
         max_message_length_mb=max_message_length_mb
     )
     

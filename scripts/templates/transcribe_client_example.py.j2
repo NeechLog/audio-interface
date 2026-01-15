@@ -1,0 +1,55 @@
+"""
+Example client usage for {{ service_name }} service.
+"""
+
+import time
+import logging
+import grpc
+from {{ module_name }}.client import {{ package_name }}
+from {{ module_name }} import {{ pb2_module_name }}
+
+def run_example():
+    """Run client example."""
+    print("Connecting to {{ service_name }} at localhost:50051...")
+    
+    # NOTE: Make sure the server is running first!
+    # Run: uv run generated_packages/packages/transcribeserver/transcribeserver/server_example.py
+    
+    with {{ package_name }}("localhost:50051") as client:
+        # 1. Unary call example
+        print("\n--- 1. Unary Transcription ---")
+        try:
+            request = {{ pb2_module_name }}.TranscribeRequest()
+            request.input.text = "Hello, this is a test of the transcription service."
+            # Set other fields if needed, e.g. metadata
+            
+            response = client.transcribe(request)
+            print(f"Request: {request.input.text}")
+            print(f"Response: {response.output.text}")
+            print(f"Status: {response.meta.status_code}")
+            
+        except grpc.RpcError as e:
+            print(f"RPC failed: {e}")
+
+        # 2. Streaming call example
+        print("\n--- 2. Streaming Transcription ---")
+        def request_generator():
+            messages = ["First chunk", "Second chunk", "Third chunk"]
+            for msg in messages:
+                print(f"Sending: {msg}")
+                req = {{ pb2_module_name }}.TranscribeRequest()
+                req.input.text = msg
+                yield req
+                time.sleep(0.5)
+                
+        try:
+            responses = client.stream_transcription(request_generator())
+            for response in responses:
+                print(f"Received: {response.output.text}")
+                
+        except grpc.RpcError as e:
+            print(f"Streaming RPC failed: {e}")
+
+if __name__ == "__main__":
+    logging.basicConfig()
+    run_example()

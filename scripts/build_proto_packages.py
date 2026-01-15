@@ -50,29 +50,43 @@ PACKAGES = {
         "proto_files": ["transcribe-interface.proto"],
         "service": "TranscribeWorker",
         "type": "client",
+        "client_name": "TranscribeClient",
         "description": "Python client for TranscribeModelWorker service",
-        "dependencies": ["AudioMessages"]
+        "dependencies": ["AudioMessages"],
+        "client_methods_template": "transcribe_client_methods.py.j2",
+        "client_example_template": "transcribe_client_example.py.j2"
     },
     "TranscribeServer": {
         "proto_files": ["transcribe-interface.proto"],
         "service": "TranscribeWorker", 
         "type": "server",
         "description": "Python server skeleton for TranscribeModelWorker service",
-        "dependencies": ["AudioMessages"]
+        "dependencies": ["AudioMessages"],
+        "server_methods_template": "transcribe_server_methods.py.j2",
+        "handler_example_template": "transcribe_handlers.py.j2",
+        "handler_names": ["transcribe_handler", "stream_transcription_handler"],
+        "response_message": "TranscribeResponse"
     },
     "AudioCloneClient": {
         "proto_files": ["clone-interface.proto"],
         "service": "AudioCloneModelWorker",
         "type": "client",
+        "client_name": "AudioCloneClient",
         "description": "Python client for AudioCloneModelWorker service",
-        "dependencies": ["AudioMessages"]
+        "dependencies": ["AudioMessages"],
+        "client_methods_template": "clone_client_methods.py.j2",
+        "client_example_template": "clone_client_example.py.j2"
     },
     "AudioCloneServer": {
         "proto_files": ["clone-interface.proto"],
         "service": "AudioCloneModelWorker",
         "type": "server", 
         "description": "Python server skeleton for AudioCloneModelWorker service",
-        "dependencies": ["AudioMessages"]
+        "dependencies": ["AudioMessages"],
+        "server_methods_template": "clone_server_methods.py.j2",
+        "handler_example_template": "clone_handlers.py.j2",
+        "handler_names": ["clone_handler", "stream_clone_handler"],
+        "response_message": "CloneResponse"
     }
 }
 
@@ -157,6 +171,20 @@ def generate_proto_code(package_dir: Path, package_name: str, config: dict) -> b
                 'import audiomessages.audio_message_pb2 as audio__message__pb2'
             )
             pb2_file.write_text(content)
+            
+        # Fix imports in generated grpc files to be relative
+        for grpc_file in (package_dir / module_name).glob("*_pb2_grpc.py"):
+            content = grpc_file.read_text()
+            # Replace absolute import with relative import
+            # Pattern: import name_pb2 as name__pb2
+            base_name = config["proto_files"][0].replace('.proto', '')
+            import_name = base_name.replace('-', '_') + '_pb2'
+            
+            content = content.replace(
+                f'import {import_name} as',
+                f'from . import {import_name} as'
+            )
+            grpc_file.write_text(content)
     
     return True
 
@@ -169,13 +197,17 @@ def create_client_wrapper(package_dir: Path, package_name: str, config: dict) ->
     # Load main client template
     client_template = env.get_template("grpc_client_wrapper.py.j2")
     
+    # Calculate pb2 module name from proto file
+    pb2_module_name = config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_')
+    
     # Load service-specific methods template
-    if "Transcribe" in package_name:
-        methods_template = env.get_template("transcribe_client_methods.py.j2")
-        service_methods = methods_template.render(service_name=service_name)
-    elif "Clone" in package_name:
-        methods_template = env.get_template("clone_client_methods.py.j2")
-        service_methods = methods_template.render(service_name=service_name)
+    template_name = config.get("client_methods_template")
+    if template_name:
+        methods_template = env.get_template(template_name)
+        service_methods = methods_template.render(
+            service_name=service_name,
+            pb2_module_name=pb2_module_name
+        )
     else:
         service_methods = ""
     
@@ -186,16 +218,32 @@ def create_client_wrapper(package_dir: Path, package_name: str, config: dict) ->
         indented_methods = ""
     
     # Render main client template
+    client_class_name = config.get("client_name", package_name)
     client_code = client_template.render(
         description=config['description'],
         module_name=module_name,
         service_name=service_name,
-        package_name=package_name,
-        service_methods=indented_methods
+        package_name=client_class_name,
+        service_methods=indented_methods,
+        pb2_module_name=pb2_module_name
     )
     
     client_file = package_dir / module_name / "client.py"
     client_file.write_text(client_code)
+    
+    # Create client example if template is provided
+    example_template_name = config.get("client_example_template")
+    if example_template_name:
+        example_template = env.get_template(example_template_name)
+        example_code = example_template.render(
+            description=config['description'],
+            module_name=module_name,
+            service_name=service_name,
+            package_name=client_class_name,
+            pb2_module_name=pb2_module_name
+        )
+        example_file = package_dir / module_name / "client_example.py"
+        example_file.write_text(example_code)
     
     return True
 
@@ -209,14 +257,23 @@ def create_server_skeleton(package_dir: Path, package_name: str, config: dict) -
     server_template = env.get_template("grpc_server_skeleton.py.j2")
     
     # Load service-specific methods template
-    if "Transcribe" in package_name:
-        methods_template = env.get_template("transcribe_server_methods.py.j2")
+    handlers_init_args = ""
+    handlers_init_assignments = ""
+    service_methods = ""
+    
+    template_name = config.get("server_methods_template")
+    handler_names = config.get("handler_names", [])
+    
+    if template_name and handler_names:
+        methods_template = env.get_template(template_name)
         service_methods = methods_template.render(service_name=service_name, proto_file_name=config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_'))
-    elif "Clone" in package_name:
-        methods_template = env.get_template("clone_server_methods.py.j2")
-        service_methods = methods_template.render(service_name=service_name, proto_file_name=config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_'))
-    else:
-        service_methods = ""
+        
+        # Define handlers dynamically
+        args_list = [f"{name}: Callable" for name in handler_names]
+        handlers_init_args = ", ".join(args_list)
+        
+        assignments_list = [f"self.{name} = {name}" for name in handler_names]
+        handlers_init_assignments = "\n        ".join(assignments_list)
     
     # Add proper indentation to service methods
     if service_methods:
@@ -230,7 +287,9 @@ def create_server_skeleton(package_dir: Path, package_name: str, config: dict) -
         module_name=module_name,
         service_name=service_name,
         service_methods=indented_methods,
-        proto_file_name=config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_')
+        proto_file_name=config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_'),
+        handlers_init_args=handlers_init_args,
+        handlers_init_assignments=handlers_init_assignments
     )
     
     server_file = package_dir / module_name / "server.py"
@@ -294,12 +353,36 @@ def create_server_launcher(package_dir: Path, package_name: str, config: dict) -
     module_name = package_name.lower()
     service_name = config["service"]
     
+    pb2_module_name = config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_')
+    grpc_module_name = config["proto_files"][0].replace('.proto', '_pb2_grpc').replace('-', '_')
+    
+    handler_definitions = ""
+    handler_kwargs_dict = ""
+    handler_kwargs_args = ""
+    
+    template_name = config.get("handler_example_template")
+    handler_names = config.get("handler_names", [])
+    
+    if template_name and handler_names:
+        handler_template = env.get_template(template_name)
+        handler_definitions = handler_template.render(pb2_module_name=pb2_module_name)
+        
+        kwargs_dict_list = [f"'{name}': {name}" for name in handler_names]
+        handler_kwargs_dict = ",\n            ".join(kwargs_dict_list)
+        
+        kwargs_args_list = [f"{name}={name}" for name in handler_names]
+        handler_kwargs_args = ",\n        ".join(kwargs_args_list)
+
     example_code = example_template.render(
         description=config['description'],
         module_name=module_name,
         service_name=service_name,
         package_name=package_name,
-        proto_file_name=config["proto_files"][0].replace('.proto', '_pb2_grpc').replace('-', '_')
+        grpc_module_name=grpc_module_name,
+        pb2_module_name=pb2_module_name,
+        handler_definitions=handler_definitions,
+        handler_kwargs_dict=handler_kwargs_dict,
+        handler_kwargs_args=handler_kwargs_args
     )
     
     example_file = package_dir / package_name.lower() / "server_example.py"
@@ -320,15 +403,34 @@ def create_readme(package_dir: Path, package_name: str, config: dict) -> bool:
         usage_examples = usage_template.render(package_name=package_name)
     elif "Client" in package_name:
         usage_template = env.get_template("client_usage_example.md.j2")
-        usage_examples = usage_template.render(package_name=package_name)
+        client_class_name = config.get("client_name", package_name)
+        module_name = package_name.lower()
+        usage_examples = usage_template.render(
+            module_name=module_name,
+            class_name=client_class_name
+        )
     elif "Server" in package_name:
         usage_template = env.get_template("server_usage_example.md.j2")
         module_name = package_name.lower()
         service_name = config["service"]
+        
+        pb2_module_name = config["proto_files"][0].replace('.proto', '_pb2').replace('-', '_')
+        grpc_module_name = config["proto_files"][0].replace('.proto', '_pb2_grpc').replace('-', '_')
+        
+        handler_keys = config.get("handler_names", [])
+        handler_init_kwargs_example = ",\n        ".join([f"'{k}': my_{k}" for k in handler_keys])
+        
+        response_message = config.get("response_message", f"{service_name}Response")
+            
         usage_examples = usage_template.render(
             package_name=package_name,
             module_name=module_name,
-            service_name=service_name
+            service_name=service_name,
+            pb2_module_name=pb2_module_name,
+            grpc_module_name=grpc_module_name,
+            handler_init_kwargs_example=handler_init_kwargs_example,
+            handler_keys=handler_keys,
+            response_message=response_message
         )
     else:
         usage_examples = ""

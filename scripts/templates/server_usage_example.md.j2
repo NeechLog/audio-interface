@@ -1,27 +1,29 @@
-# Simple server startup
+# Usage Example
 ```python
-from {{ package_name.lower() }}.server import serve
-
-# Start server
-serve(port=50051)
-```
-
-# Advanced server with launcher (recommended)
-```python
+import logging
 from {{ package_name.lower() }}.grpc_server_launcher import start_grpc_server
-from {{ package_name.lower() }}.{{ module_name }}_pb2_grpc import add_{{ service_name }}Servicer_to_server
+from {{ package_name.lower() }}.{{ grpc_module_name }} import add_{{ service_name }}Servicer_to_server
+from {{ package_name.lower() }}.{{ pb2_module_name }} import {{ response_message }}
 from {{ package_name.lower() }}.server import {{ service_name }}Servicer
 
-# Start with multi-process support and configurable threads
+# Define your handlers
+{% for key in handler_keys %}
+def my_{{ key }}(request, context):
+    logging.info(f"Received request: {request}")
+    # ... process request ...
+    # return/yield {{ response_message }}(...)
+{% endfor %}
+
+# Start server with your handlers
 start_grpc_server(
     service_add_func=add_{{ service_name }}Servicer_to_server,
     service_class={{ service_name }}Servicer,
     port=50051,
-    max_workers=20,
-    num_processes=4,  # 4 processes, each with 20 threads
-    log_level="INFO",
-    max_message_length_mb=10  # 10MB max message size for audio
+    log_file="server.log",
+    service_init_kwargs={
+        {{ handler_init_kwargs_example }}
+    }
 )
 ```
 
-See `server_example.py` for more detailed usage examples.
+See `server_example.py` in the package for a complete working example with default echo handlers.

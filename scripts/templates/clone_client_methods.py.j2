@@ -1,4 +1,4 @@
-def clone(self, request: {{ service_name }}_pb2.CloneRequest) -> {{ service_name }}_pb2.CloneResponse:
+def clone(self, request: {{ pb2_module_name }}.CloneRequest) -> {{ pb2_module_name }}.CloneResponse:
         """Unary clone call."""
         return self.stub.Clone(request)
     

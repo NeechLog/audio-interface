@@ -1,0 +1,17 @@
+
+def transcribe_handler(request, context):
+    logging.info(f"Received transcription request: {request}")
+    response = {{ pb2_module_name }}.TranscribeResponse()
+    response.output.text = f"Echo: {request.input.text}"
+    response.meta.request_id = "echo-1"
+    response.meta.status_code = 200
+    return response
+
+def stream_transcription_handler(request_iterator, context):
+    for request in request_iterator:
+        logging.info(f"Received streaming request: {request}")
+        response = {{ pb2_module_name }}.TranscribeResponse()
+        response.output.text = f"Echo: {request.input.text}"
+        response.meta.request_id = "echo-stream-1"
+        response.meta.status_code = 200
+        yield response

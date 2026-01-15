@@ -1,18 +1,7 @@
 def Clone(self, request: {{ proto_file_name }}.CloneRequest, context: grpc.ServicerContext) -> {{ proto_file_name }}.CloneResponse:
-        """Handle clone request."""
-        # TODO: Implement your cloning logic here
-        response = {{ proto_file_name }}.CloneResponse()
-        response.cloned_audio_message.text = "Cloned audio result placeholder"
-        response.meta.request_id = "request-123"
-        response.meta.status_code = 200
-        return response
+    """Handle clone request."""
+    return self.clone_handler(request, context)
     
 def StreamClone(self, request_iterator, context: grpc.ServicerContext):
     """Handle streaming clone requests."""
-    # TODO: Implement streaming cloning logic
-    for request in request_iterator:
-        response = {{ proto_file_name }}.CloneResponse()
-        response.cloned_audio_message.text = f"Streaming clone for audio data"
-        response.meta.request_id = "stream-request-123"
-        response.meta.status_code = 200
-        yield response
+    yield from self.stream_clone_handler(request_iterator, context)

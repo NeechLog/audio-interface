@@ -1,0 +1,17 @@
+
+def clone_handler(request, context):
+    logging.info(f"Received clone request: {request}")
+    response = {{ pb2_module_name }}.CloneResponse()
+    response.cloned_audio_message.audio_binary = b"fake_audio_data_echo"
+    response.meta.request_id = "echo-1"
+    response.meta.status_code = 200
+    return response
+
+def stream_clone_handler(request_iterator, context):
+    for request in request_iterator:
+        logging.info(f"Received streaming request: {request}")
+        response = {{ pb2_module_name }}.CloneResponse()
+        response.cloned_audio_message.audio_binary = b"fake_stream_chunk_echo"
+        response.meta.request_id = "echo-stream-1"
+        response.meta.status_code = 200
+        yield response

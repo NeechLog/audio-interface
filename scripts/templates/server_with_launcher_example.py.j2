@@ -4,31 +4,42 @@
 Example usage of the {{ service_name }} server with configurable launcher.
 """
 
+import logging
 from {{ module_name }}.grpc_server_launcher import start_grpc_server
-from {{ module_name }} import {{ proto_file_name }}
+from {{ module_name }} import {{ grpc_module_name }}, {{ pb2_module_name }}
 from {{ module_name }}.server import {{ service_name }}Servicer
+
+# Define handlers
+{{ handler_definitions }}
 
 # Example 1: Simple server startup
 def simple_server():
     """Start server with default configuration."""
     start_grpc_server(
-        service_add_func={{ proto_file_name }}.add_{{ service_name }}Servicer_to_server,
+        service_add_func={{ grpc_module_name }}.add_{{ service_name }}Servicer_to_server,
         service_class={{ service_name }}Servicer,
         port=50051,
-        max_workers=10
+        max_workers=10,
+        service_init_kwargs={
+            {{ handler_kwargs_dict }}
+        }
     )
 
 # Example 2: Multi-process server for high load
 def multi_process_server():
     """Start server with multiple processes for high concurrency."""
     start_grpc_server(
-        service_add_func={{ proto_file_name }}.add_{{ service_name }}Servicer_to_server,
+        service_add_func={{ grpc_module_name }}.add_{{ service_name }}Servicer_to_server,
         service_class={{ service_name }}Servicer,
         port=50051,
         max_workers=20,
         num_processes=4,  # 4 processes, each with 20 threads
         log_level="INFO",
-        max_message_length_mb=10  # 10MB max message size for audio
+        log_file="server_multi_process.log",
+        max_message_length_mb=10,  # 10MB max message size for audio
+        service_init_kwargs={
+            {{ handler_kwargs_dict }}
+        }
     )
 
 # Example 3: Custom configuration
@@ -42,14 +53,17 @@ def custom_server():
         max_workers=15,
         num_processes=2,
         log_level="DEBUG",
+        log_file="server_custom.log",
         max_message_length=50 * 1024 * 1024,  # 50MB for large audio files
         graceful_shutdown_timeout=60
     )
     
     launcher = GrpcServerLauncher(config)
-    service_instance = {{ service_name }}Servicer()
+    service_instance = {{ service_name }}Servicer(
+        {{ handler_kwargs_args }}
+    )
     launcher.start_server(
-        {{ proto_file_name }}.add_{{ service_name }}Servicer_to_server,
+        {{ grpc_module_name }}.add_{{ service_name }}Servicer_to_server,
         service_instance
     )
 
