@@ -12,8 +12,7 @@ message CloneRequest {
 
 message CloneResponse {
   AudioMessage cloned_audio_message = 1;
-  optional string model_name = 2;
-  Metadata meta = 3;
+  optional ProcessingMetadata meta = 2;
 }
 
 service AudioCloneModelWorker {

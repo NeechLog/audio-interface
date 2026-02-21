@@ -7,12 +7,23 @@ message AudioMessage {
   optional string text = 1;
   optional bytes audio_binary = 2;
   optional string audio_file_path = 3;
+  optional string locale = 4;
+  optional AudioMessageInfo audio_generator_model_name_version = 5;
+  optional AudioMessageInfo text_generator_model_name_version = 6;
+  repeated AudioMessageInfo info = 7;
+
 }
 
-message Metadata {
+message ProcessingMetadata {
   string request_id = 1;
   float time_taken_ms = 2;
   int32 status_code = 3; // Inspired by gRPC/HTTP status codes
   string error_message = 4;
   map<string, string> usage_stats = 5; // e.g., "tokens": "45"
+}
+
+message AudioMessageInfo {
+  string name = 1;
+  string value = 2;
+  optional string description = 3;
 }

@@ -11,8 +11,7 @@ message TranscribeRequest {
 
 message TranscribeResponse {
   AudioMessage output = 1; // Text will be mandatory here
-  optional string model_name = 2;
-  Metadata meta = 3;
+  optional ProcessingMetadata meta = 3;
 }
 
 service TranscribeWorker {
