@@ -1,5 +1,5 @@
 ```python
-from audiomessages import AudioMessage, Metadata
+from audiomessages import AudioMessage, ProcessingMetadata, AudioMessageInfo
 
 # Create an audio message
 audio_msg = AudioMessage()
@@ -7,7 +7,7 @@ audio_msg.text = "Hello World"
 audio_msg.audio_binary = b"audio_data"
 
 # Create metadata
-meta = Metadata()
-meta.request_id = "request-123"
-meta.status_code = 200
+processing_meta = ProcessingMetadata()
+processing_meta.request_id = "request-123"
+processing_meta.status_code = 200
 ```

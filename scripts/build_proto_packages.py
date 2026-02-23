@@ -2,7 +2,7 @@
 """
 Build script to generate Python packages from proto files.
 Generates 5 packages:
-- AudioMessages (standalone package with AudioMessage and Metadata)
+- AudioMessages (standalone package with AudioMessage, ProcessingMetadata, and AudioMessageInfo)
 - TranscribeClient (depends on AudioMessages)
 - TranscribeServer (depends on AudioMessages)
 - AudioCloneClient (depends on AudioMessages)
@@ -44,7 +44,7 @@ PACKAGES = {
     "AudioMessages": {
         "proto_files": ["audio-message.proto"],
         "type": "messages",
-        "description": "Standalone package containing AudioMessage and Metadata protobuf messages"
+        "description": "Standalone package containing AudioMessage, ProcessingMetadata, and AudioMessageInfo protobuf messages"
     },
     "TranscribeClient": {
         "proto_files": ["transcribe-interface.proto"],

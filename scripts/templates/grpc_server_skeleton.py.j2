@@ -4,7 +4,7 @@
 
 import grpc
 from typing import Callable
-from audiomessages import AudioMessage, Metadata
+from audiomessages import AudioMessage, ProcessingMetadata, AudioMessageInfo
 from {{ module_name }} import {{ proto_file_name }}, {{ proto_file_name }}_grpc
 
 class {{ service_name }}Servicer({{ proto_file_name }}_grpc.{{ service_name }}Servicer):

@@ -27,7 +27,7 @@ def run_example():
             response = client.clone(request)
             print(f"Cloned audio size: {len(response.cloned_audio_message.audio_binary)} bytes")
             print(f"Model used: {response.model_name}")
-            print(f"Status: {response.meta.status_code}")
+            print(f"Status: {response.processing_meta.status_code}")
             
         except grpc.RpcError as e:
             print(f"RPC failed: {e}")

@@ -26,7 +26,7 @@ def run_example():
             response = client.transcribe(request)
             print(f"Request: {request.input.text}")
             print(f"Response: {response.output.text}")
-            print(f"Status: {response.meta.status_code}")
+            print(f"Status: {response.processing_meta.status_code}")
             
         except grpc.RpcError as e:
             print(f"RPC failed: {e}")

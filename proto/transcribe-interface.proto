@@ -11,7 +11,7 @@ message TranscribeRequest {
 
 message TranscribeResponse {
   AudioMessage output = 1; // Text will be mandatory here
-  optional ProcessingMetadata meta = 3;
+  optional ProcessingMetadata processing_meta = 3;
 }
 
 service TranscribeWorker {
