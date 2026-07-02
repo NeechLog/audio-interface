@@ -142,6 +142,7 @@ def generate_proto_code(package_dir: Path, package_name: str, config: dict) -> b
         "run", "python", "-m", "grpc_tools.protoc",
         f"--proto_path={PROTO_DIR}",
         f"--python_out={package_dir / module_name}",
+        f"--pyi_out={package_dir / module_name}",
         f"--grpc_python_out={package_dir / module_name}",
     ] + proto_files
     
@@ -155,10 +156,13 @@ def generate_proto_code(package_dir: Path, package_name: str, config: dict) -> b
     if config["type"] != "messages":
         # Remove the generated audio_message_pb2.py files since they'll come from AudioMessages package
         audio_message_pb2 = package_dir / module_name / "audio_message_pb2.py"
+        audio_message_pb2_pyi = package_dir / module_name / "audio_message_pb2.pyi"
         audio_message_pb2_grpc = package_dir / module_name / "audio_message_pb2_grpc.py"
         
         if audio_message_pb2.exists():
             audio_message_pb2.unlink()
+        if audio_message_pb2_pyi.exists():
+            audio_message_pb2_pyi.unlink()
         if audio_message_pb2_grpc.exists():
             audio_message_pb2_grpc.unlink()
         
@@ -171,6 +175,19 @@ def generate_proto_code(package_dir: Path, package_name: str, config: dict) -> b
                 'import audiomessages.audio_message_pb2 as audio__message__pb2'
             )
             pb2_file.write_text(content)
+
+        # Fix the imports in the generated pb2 stub files to use audiomessages package
+        for pyi_file in (package_dir / module_name).glob("*_pb2.pyi"):
+            content = pyi_file.read_text()
+            content = content.replace(
+                'import audio_message_pb2 as audio__message__pb2',
+                'import audiomessages.audio_message_pb2 as audio__message__pb2'
+            )
+            content = content.replace(
+                'import audio_message_pb2 as _audio_message_pb2',
+                'import audiomessages.audio_message_pb2 as _audio_message_pb2'
+            )
+            pyi_file.write_text(content)
             
         # Fix imports in generated grpc files to be relative
         for grpc_file in (package_dir / module_name).glob("*_pb2_grpc.py"):
