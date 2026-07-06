@@ -1,7 +1,7 @@
-.PHONY: build clean install-deps test-packages sync
+.PHONY: all build clean install-deps test test-packages sync
 
 # Default target
-all: build
+all: build test-packages
 
 # Install/sync dependencies
 install-deps:
@@ -34,6 +34,10 @@ clean:
 # Test package building (dry run)
 test:
 	uv run python scripts/build_proto_packages.py --dry-run
+
+# Test generated package imports and protobuf round trips
+test-packages:
+	uv run python -m unittest discover -s tests
 
 # Install generated packages for development
 install-dev:
