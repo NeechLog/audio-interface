@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package audio_inference;
 
-import "audio-message.proto";
+import "audiomessages/audio_message.proto";
 
 message TranscribeRequest {
   AudioMessage input = 1;

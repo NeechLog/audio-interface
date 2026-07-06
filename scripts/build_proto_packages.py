@@ -42,7 +42,7 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 # Package definitions
 PACKAGES = {
     "AudioMessages": {
-        "proto_files": ["audio-message.proto"],
+        "proto_files": ["audiomessages/audio_message.proto"],
         "type": "messages",
         "description": "Standalone package containing AudioMessage, ProcessingMetadata, and AudioMessageInfo protobuf messages"
     },
@@ -136,14 +136,15 @@ def generate_proto_code(package_dir: Path, package_name: str, config: dict) -> b
     """Generate Python code from proto files."""
     module_name = package_name.lower()
     proto_files = [str(PROTO_DIR / f) for f in config["proto_files"]]
+    proto_output_dir = package_dir if config["type"] == "messages" else package_dir / module_name
     
     # Common grpc command for both messages and service packages
     grpc_cmd = [
         "run", "python", "-m", "grpc_tools.protoc",
         f"--proto_path={PROTO_DIR}",
-        f"--python_out={package_dir / module_name}",
-        f"--pyi_out={package_dir / module_name}",
-        f"--grpc_python_out={package_dir / module_name}",
+        f"--python_out={proto_output_dir}",
+        f"--pyi_out={proto_output_dir}",
+        f"--grpc_python_out={proto_output_dir}",
     ] + proto_files
     
     if not run_uv_command(grpc_cmd):
@@ -154,41 +155,6 @@ def generate_proto_code(package_dir: Path, package_name: str, config: dict) -> b
     
     # Special cleanup for service packages (non-messages)
     if config["type"] != "messages":
-        # Remove the generated audio_message_pb2.py files since they'll come from AudioMessages package
-        audio_message_pb2 = package_dir / module_name / "audio_message_pb2.py"
-        audio_message_pb2_pyi = package_dir / module_name / "audio_message_pb2.pyi"
-        audio_message_pb2_grpc = package_dir / module_name / "audio_message_pb2_grpc.py"
-        
-        if audio_message_pb2.exists():
-            audio_message_pb2.unlink()
-        if audio_message_pb2_pyi.exists():
-            audio_message_pb2_pyi.unlink()
-        if audio_message_pb2_grpc.exists():
-            audio_message_pb2_grpc.unlink()
-        
-        # Fix the imports in the generated pb2 files to use audiomessages package
-        for pb2_file in (package_dir / module_name).glob("*_pb2.py"):
-            content = pb2_file.read_text()
-            # Replace the import statement to use audiomessages package
-            content = content.replace(
-                'import audio_message_pb2 as audio__message__pb2',
-                'import audiomessages.audio_message_pb2 as audio__message__pb2'
-            )
-            pb2_file.write_text(content)
-
-        # Fix the imports in the generated pb2 stub files to use audiomessages package
-        for pyi_file in (package_dir / module_name).glob("*_pb2.pyi"):
-            content = pyi_file.read_text()
-            content = content.replace(
-                'import audio_message_pb2 as audio__message__pb2',
-                'import audiomessages.audio_message_pb2 as audio__message__pb2'
-            )
-            content = content.replace(
-                'import audio_message_pb2 as _audio_message_pb2',
-                'import audiomessages.audio_message_pb2 as _audio_message_pb2'
-            )
-            pyi_file.write_text(content)
-            
         # Fix imports in generated grpc files to be relative
         for grpc_file in (package_dir / module_name).glob("*_pb2_grpc.py"):
             content = grpc_file.read_text()
