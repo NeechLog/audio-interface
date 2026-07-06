@@ -174,7 +174,7 @@ This section describes how to modify protobuf definitions and regenerate package
 ### Example: Adding ProcessingMetadata and AudioMessageInfo
 
 Recent changes demonstrate this process:
-1. Added `ProcessingMetadata` and `AudioMessageInfo` to `audio-message.proto`
+1. Added `ProcessingMetadata` and `AudioMessageInfo` to `audiomessages/audio_message.proto`
 2. Updated `messages_package_init.py.j2` to export the new messages
 3. Updated all client/server templates to import the new messages
 4. Rebuilt all packages to apply changes
@@ -225,7 +225,8 @@ make help
 ```
 audio-interface/
 ├── proto/                          # Protobuf definitions
-│   ├── audio-message.proto
+│   ├── audiomessages/
+│   │   └── audio_message.proto
 │   ├── transcribe-interface.proto
 │   └── clone-interface.proto
 ├── scripts/                        # Build and setup scripts
@@ -254,4 +255,3 @@ audio-interface/
 ## License
 
 MIT License - see LICENSE file for details.
-
