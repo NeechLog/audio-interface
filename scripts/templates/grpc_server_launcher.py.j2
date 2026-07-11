@@ -13,10 +13,132 @@ import signal
 import sys
 import os
 import multiprocessing
+import importlib
+import subprocess
 from concurrent import futures
 from typing import Optional, Dict, Any, Callable
 import grpc
 from pathlib import Path
+
+
+def _remove_flag(args, flag):
+    """Return args with a boolean flag removed."""
+    return [arg for arg in args if arg != flag]
+
+
+def _get_option_value(args, option_name, default=None):
+    """Read --option value or --option=value from argv without importing app code."""
+    for index, arg in enumerate(args):
+        if arg == option_name and index + 1 < len(args):
+            return args[index + 1]
+        prefix = f"{option_name}="
+        if arg.startswith(prefix):
+            return arg[len(prefix):]
+    return default
+
+
+def _pid_is_running(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+
+
+def _prepare_pid_file(pid_file, logger):
+    if not pid_file:
+        return None
+
+    abs_pid_file = os.path.abspath(pid_file)
+    if not os.path.exists(abs_pid_file):
+        return abs_pid_file
+
+    try:
+        with open(abs_pid_file, "r") as existing_file:
+            existing_pid_text = existing_file.read().strip()
+        existing_pid = int(existing_pid_text) if existing_pid_text else None
+    except ValueError:
+        logger.warning("Removing invalid PID file %s", abs_pid_file)
+        os.remove(abs_pid_file)
+        return abs_pid_file
+
+    if existing_pid and _pid_is_running(existing_pid):
+        logger.error("PID file %s is already locked by running process %s", abs_pid_file, existing_pid)
+        sys.exit(1)
+
+    logger.warning("Removing stale PID file %s", abs_pid_file)
+    os.remove(abs_pid_file)
+    return abs_pid_file
+
+
+def spawn_daemon_child(
+    *,
+    log_file="grpc_server.log",
+    pid_file="{{ package_name.lower() }}.pid",
+    daemon_flag="--daemon",
+    daemon_env_var="GRPC_DAEMON",
+):
+    """Spawn the current command as a detached child without daemon flags."""
+    logger = logging.getLogger(__name__)
+    abs_log_file = os.path.abspath(log_file or os.devnull)
+    abs_pid_file = _prepare_pid_file(pid_file, logger)
+
+    child_args = [sys.executable, *_remove_flag(sys.argv, daemon_flag)]
+    child_env = os.environ.copy()
+    child_env[daemon_env_var] = "false"
+    child_env["AUDIOCLONESERVER_DAEMON_CHILD"] = "1"
+
+    logger.info("Starting server in daemon mode...")
+    logging.shutdown()
+
+    with open(abs_log_file, "a+", buffering=1) as daemon_log_stream:
+        process = subprocess.Popen(
+            child_args,
+            stdin=subprocess.DEVNULL,
+            stdout=daemon_log_stream,
+            stderr=daemon_log_stream,
+            cwd=os.getcwd(),
+            env=child_env,
+            start_new_session=True,
+            close_fds=True,
+        )
+
+    if abs_pid_file:
+        try:
+            with open(abs_pid_file, "x") as new_pid_file:
+                new_pid_file.write(f"{process.pid}\n")
+        except FileExistsError:
+            logger.error("PID file %s was created concurrently", abs_pid_file)
+            process.terminate()
+            sys.exit(1)
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logger.info("Daemon process started with PID %s", process.pid)
+
+
+def run_service_entrypoint(
+    *,
+    app_main_import,
+    injected_command=None,
+    default_log_file="grpc_server.log",
+    default_pid_file="{{ package_name.lower() }}.pid",
+):
+    """Handle daemon bootstrapping before lazily importing the service app."""
+    daemon_requested = "--daemon" in sys.argv or os.getenv("GRPC_DAEMON", "").lower() == "true"
+    daemon_child = os.getenv("AUDIOCLONESERVER_DAEMON_CHILD") == "1"
+
+    if daemon_requested and not daemon_child:
+        log_file = os.getenv("GRPC_LOG_FILE") or _get_option_value(sys.argv, "--log-file", default_log_file)
+        pid_file = os.getenv("GRPC_PID_FILE") or _get_option_value(sys.argv, "--pid-file", default_pid_file)
+        spawn_daemon_child(log_file=log_file, pid_file=pid_file)
+        return
+
+    if injected_command and (len(sys.argv) < 2 or sys.argv[1] != injected_command):
+        sys.argv.insert(1, injected_command)
+
+    module_name, function_name = app_main_import.split(":", 1)
+    app_main = getattr(importlib.import_module(module_name), function_name)
+    app_main()
 
 
 class GrpcServerConfig:
@@ -132,20 +254,49 @@ class GrpcServerLauncher:
             'umask': self.config.umask,
             'detach_process': True,
         }
+
+        daemon_log_stream = None
+        if self.config.log_file:
+            # Resolve before DaemonContext changes the working directory.
+            self.config.log_file = os.path.abspath(self.config.log_file)
+            daemon_log_stream = open(self.config.log_file, "a+", buffering=1)
+            context_kwargs['stdout'] = daemon_log_stream
+            context_kwargs['stderr'] = daemon_log_stream
+            context_kwargs['files_preserve'] = [daemon_log_stream]
         
         if self.config.pid_file:
             # Ensure pid_file path is absolute because daemon context changes working directory
             abs_pid_file = os.path.abspath(self.config.pid_file)
-            context_kwargs['pidfile'] = pidfile.TimeoutPIDLockFile(abs_pid_file)
+            daemon_pidfile = pidfile.TimeoutPIDLockFile(abs_pid_file)
+            if os.path.exists(abs_pid_file):
+                try:
+                    existing_pid = daemon_pidfile.read_pid()
+                    if existing_pid is not None:
+                        os.kill(existing_pid, 0)
+                        self.logger.error(
+                            "PID file %s is already locked by running process %s",
+                            abs_pid_file,
+                            existing_pid,
+                        )
+                        sys.exit(1)
+                except ProcessLookupError:
+                    self.logger.warning("Removing stale PID file %s", abs_pid_file)
+                    daemon_pidfile.break_lock()
+                except PermissionError:
+                    self.logger.error("PID file %s belongs to a process we cannot signal", abs_pid_file)
+                    sys.exit(1)
+                except Exception as e:
+                    self.logger.error("Could not inspect PID file %s: %s", abs_pid_file, e)
+                    sys.exit(1)
+            context_kwargs['pidfile'] = daemon_pidfile
         
         if self.config.uid is not None:
             context_kwargs['uid'] = self.config.uid
         if self.config.gid is not None:
             context_kwargs['gid'] = self.config.gid
 
-        # Preserve file handles if needed, but we re-setup logging inside
-        
         self.logger.info("Starting server in daemon mode...")
+        logging.shutdown()
         
         try:
             with daemon.DaemonContext(**context_kwargs):
@@ -157,6 +308,9 @@ class GrpcServerLauncher:
             # We can't log here effectively if daemon setup failed, but try anyway
             self.logger.error(f"Failed to start daemon: {e}")
             raise
+        finally:
+            if daemon_log_stream is not None:
+                daemon_log_stream.close()
 
     def _run_server_core(self, service_add_func: Callable, service_instance: Any) -> None:
         """Core server execution logic."""
@@ -253,15 +407,45 @@ class GrpcServerLauncher:
                         process.join()
                 except KeyboardInterrupt:
                     logging.info("Received keyboard interrupt, terminating processes...")
+                    # Graceful termination with timeout
                     for process in processes:
-                        process.terminate()
+                        if process.is_alive():
+                            process.terminate()
+                    
+                    # Wait for processes to terminate with timeout
+                    import time
+                    timeout = 5  # 5 seconds timeout
+                    start_time = time.time()
+                    
                     for process in processes:
-                        process.join()
+                        remaining_time = timeout - (time.time() - start_time)
+                        if remaining_time > 0:
+                            process.join(timeout=remaining_time)
+                        
+                        # Force kill if still alive
+                        if process.is_alive():
+                            logging.warning(f"Force killing process {process.pid}")
+                            process.kill()
+                            process.join()
+                    
+                    # Clean up multiprocessing resources
+                    try:
+                        from multiprocessing import resource_tracker
+                        # Force cleanup of any leaked resources
+                        resource_tracker._resource_tracker = None
+                        logging.info("Cleaned up multiprocessing resources")
+                    except Exception as e:
+                        logging.debug(f"Could not clean up resource tracker: {e}")
+                finally:
+                    # Ensure all processes are cleaned up
+                    for process in processes:
+                        if process.is_alive():
+                            process.kill()
+                            process.join()
 
         # Handle daemonization at the top level
         if config.daemon:
-            launcher = cls(config) # Temporary instance just to call _run_as_daemon
-            launcher._run_as_daemon(run_logic)
+            spawn_daemon_child(log_file=config.log_file, pid_file=config.pid_file)
         else:
             run_logic()
 
@@ -332,16 +516,7 @@ def start_grpc_server(
         pid_file=pid_file
     )
     
-    launcher = GrpcServerLauncher(config)
-    
-    if num_processes > 1:
-        launcher.create_multi_process_server(
-            config, service_add_func, service_class, 
-            service_init_args, service_init_kwargs
-        )
-    else:
-        if daemon:
-            launcher.start_server(service_add_func, service_class(*service_init_args, **(service_init_kwargs or {})))
-        else:
-            service_instance = service_class(*service_init_args, **(service_init_kwargs or {}))
-            launcher.start_server(service_add_func, service_instance)
+    GrpcServerLauncher.create_multi_process_server(
+        config, service_add_func, service_class,
+        service_init_args, service_init_kwargs
+    )
