@@ -252,6 +252,22 @@ audio-interface/
 - protobuf >= 4.0.0
 - hatchling (build backend)
 
+## Architectural Decision Log
+
+### Spawn-based daemon entrypoints and lazy app imports
+
+Context: [Daemon Import Caveat](https://github.com/NeechLog/audio-interface/blob/main/docs/daemon-import-caveat.md)
+
+Generated server packages provide `run_service_entrypoint(...)` so service
+entrypoints can decide daemon mode before importing model-heavy app modules.
+Daemon mode uses a detached fresh child process rather than fork-based
+daemonization, avoiding inherited native runtime state from Torch, MPS, CUDA,
+gRPC threads, or model imports.
+
+Service repos should keep start scripts thin: import only the generated launcher
+helper, pass the app entrypoint as an import string, and let the helper import
+the app only after daemon handling is complete.
+
 ## License
 
 MIT License - see LICENSE file for details.
