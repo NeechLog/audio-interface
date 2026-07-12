@@ -8,6 +8,15 @@ import signal
 import sys
 import time
 
+def _signal_process_tree(pid, sig):
+    """Signal the daemon process group, falling back to the single process."""
+    try:
+        os.killpg(pid, sig)
+    except ProcessLookupError:
+        raise
+    except OSError:
+        os.kill(pid, sig)
+
 def stop_server(pid_file):
     """Stop the server using the PID file."""
     if not os.path.exists(pid_file):
@@ -46,9 +55,11 @@ def stop_server(pid_file):
         print(f"Error checking process: {e}")
         sys.exit(1)
 
-    # Send SIGTERM
+    # Send SIGTERM to the daemon process group. Daemon start uses
+    # start_new_session=True, so vLLM/model worker subprocesses are in this
+    # process group and should be terminated with the server.
     try:
-        os.kill(pid, signal.SIGTERM)
+        _signal_process_tree(pid, signal.SIGTERM)
     except OSError as e:
         print(f"Error sending SIGTERM: {e}")
         sys.exit(1)
@@ -73,7 +84,7 @@ def stop_server(pid_file):
     
     print("\nServer did not stop gracefully. Sending SIGKILL...")
     try:
-        os.kill(pid, signal.SIGKILL)
+        _signal_process_tree(pid, signal.SIGKILL)
         print("Server killed.")
     except OSError as e:
         if isinstance(e, ProcessLookupError):
